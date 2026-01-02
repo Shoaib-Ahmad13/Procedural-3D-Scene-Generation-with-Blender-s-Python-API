@@ -1,47 +1,91 @@
-# variations.py
+import random
+import math
 import bpy
-from diversity import RuntimeDiversity
+import importlib
 
-class VariationEngine:
-    def __init__(self):
-        self.diversity = RuntimeDiversity(
-            pos_range=15.0,
-            scale_range=(0.7, 1.3),
-            height_range=(2.0, 5.0),
-            seed=None  # Set value for reproducible forests
+# Import the MaterialAssigner
+import materials
+importlib.reload(materials)
+from materials import MaterialAssigner
+
+class RuntimeDiversity:
+    """
+    Handles all randomness and procedural realism.
+    Merged from diversity.py into variations.py
+    """
+    def __init__(
+        self,
+        pos_range=15.0,
+        scale_range=(0.7, 1.3),
+        height_range=(2.0, 5.0),
+        rotation_range=(0, 360),
+        seed=None
+    ):
+        self.pos_range = pos_range
+        self.scale_range = scale_range
+        self.height_range = height_range
+        self.rotation_range = rotation_range
+
+        # Optional reproducibility
+        if seed is not None:
+            random.seed(seed)
+
+    def random_position(self):
+        return (
+            random.uniform(-self.pos_range, self.pos_range),
+            random.uniform(-self.pos_range, self.pos_range)
         )
 
+    def random_scale(self):
+        return random.uniform(*self.scale_range)
+
+    def random_height(self):
+        return random.uniform(*self.height_range)
+
+    def random_rotation(self):
+        return math.radians(
+            random.uniform(*self.rotation_range)
+        )
+
+class VariationEngine:
+    def __init__(self, spawn_range=15.0):
+        # Initialize the RuntimeDiversity engine
+        self.diversity = RuntimeDiversity(
+            pos_range=spawn_range,
+            scale_range=(0.7, 1.3),
+            height_range=(2.0, 5.0),
+            rotation_range=(0, 360)
+        )
+        # Initialize material engine
+        self.material_assigner = MaterialAssigner()
+
     def apply_random_transform(self, trunk, leaves):
+        """
+        Now uses RuntimeDiversity for all randomization.
+        This removes hardcoded values and improves code quality.
+        """
+        # Get random position using diversity engine
         pos_x, pos_y = self.diversity.random_position()
+        
+        # Get random dimensions
         trunk_h = self.diversity.random_height()
         tree_scale = self.diversity.random_scale()
-        rotation_z = self.diversity.random_rotation()
+        leaf_rotation = self.diversity.random_rotation()
 
-        # Trunk
+        # Positioning Trunk (Cylinder)
         trunk.location = (pos_x, pos_y, trunk_h / 2)
         trunk.scale = (tree_scale, tree_scale, trunk_h)
-
-        # Leaves
-        leaves.location = (pos_x, pos_y, trunk_h*2)
+        
+        # Positioning Leaves (Cone) - covers trunk top
+        leaves.location = (pos_x, pos_y, trunk_h * 2)
         leaves.scale = (tree_scale * 2.5, tree_scale * 2.5, trunk_h * 1.1)
-        leaves.rotation_euler.z = rotation_z
+        leaves.rotation_euler.z = leaf_rotation
 
     def apply_materials(self, trunk, leaves, ground):
-        # Trunk Material
-        t_mat = bpy.data.materials.new(name="Trunk_Mat")
-        t_mat.use_nodes = True
-        t_mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.1, 0.05, 0.02, 1)
-        trunk.data.materials.append(t_mat)
-
-        # Leaf Material
-        l_mat = bpy.data.materials.new(name="Leaf_Mat")
-        l_mat.use_nodes = True
-        l_mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.05, 0.6, 0.05, 1)
-        leaves.data.materials.append(l_mat)
-
-        # Ground Material
-        if ground and not ground.data.materials:
-            g_mat = bpy.data.materials.new(name="Ground_Mat")
-            g_mat.use_nodes = True
-            g_mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.02, 0.05, 0.01, 1)
-            ground.data.materials.append(g_mat)
+        """Uses MaterialAssigner class for procedural material assignment."""
+        # Apply tree materials
+        self.material_assigner.apply_tree_materials(trunk, leaves)
+        
+        # Apply ground material only once
+        if ground and len(ground.data.materials) == 0:
+            self.material_assigner.apply_ground_material(ground)
