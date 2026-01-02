@@ -22,7 +22,10 @@ from scene_manager import SceneManager
 # This is the "Clean Entry Point" required by the project 
 if __name__ == "__main__":
     # Instantiate the controller class
-    app = SceneManager()
-    
-    # Run the main execution pipeline
-    app.run()
+    try:
+        app = SceneManager()
+        print("Forest Generation Successful.")
+        # Run the main execution pipeline
+        app.run()
+    except Exception as e:
+        print(f"Error caught: {e}")
